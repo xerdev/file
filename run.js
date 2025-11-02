@@ -252,20 +252,15 @@ async function displaySystemInfo() {
  */
 function startBash() {
     try {
-        // Prompt yang disesuaikan
         const colorPrompt = '\\[\\033[1;36m\\]Premiumapps@users\\[\\033[0m\\]:\\w\\$ ';
-        
-        // Gunakan 'bash' dengan opsi interaktif (-i) dan stdio 'inherit'
-        const childProcess = spawn('bash', ['-i'], {
-            stdio: 'inherit',
-            // Gunakan env untuk mengatur variabel yang diperlukan
-            env: {
-                ...process.env,
-                USER: "Gofar",
-                HOME: "/home/container",
-                // PS1 (Prompt String 1) diatur di bash profile atau secara eksplisit jika perlu
-                PS1: colorPrompt // Mengatur PS1 agar prompt muncul langsung
-            }
+
+        const childProcess = spawn('bash', ['-c', `
+            export USER="Gofar";
+            export HOME="/home/container";
+            export PS1="${colorPrompt}";
+            bash --noprofile --norc
+        `], {
+            stdio: 'inherit'
         });
 
         childProcess.on('error', (error) => {
