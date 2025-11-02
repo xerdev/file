@@ -195,7 +195,7 @@ async function displaySystemInfo() {
     console.clear();
     console.log('\n');
     console.log(`${colors.cyan}${colors.bright}╔════════════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}║          🚀  SYSTEM INFORMATION - PTERODACTYL PANEL  🚀          ${colors.reset}`);
+    console.log(`${colors.cyan}${colors.bright}║          🚀  SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ${colors.reset}`);
     console.log(`${colors.cyan}${colors.bright}╚════════════════════════════════════════════════════════════════╝${colors.reset}`);
     console.log('');
 
