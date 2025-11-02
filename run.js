@@ -195,7 +195,7 @@ async function displaySystemInfo() {
     console.clear();
     console.log('\n');
     console.log(`${colors.cyan}${colors.bright}╔════════════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}║          🚀 SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ${colors.reset}`);
+    console.log(`${colors.cyan}${colors.bright}║          🚀  SYSTEM INFORMATION - PTERODACTYL PANEL  🚀          ${colors.reset}`);
     console.log(`${colors.cyan}${colors.bright}╚════════════════════════════════════════════════════════════════╝${colors.reset}`);
     console.log('');
 
@@ -242,7 +242,7 @@ async function displaySystemInfo() {
 
     console.log('');
     console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
-    console.log(`${colors.green}${colors.bright}  ✓ System Ready - Starting Bash Shell...${colors.reset}`);
+    console.log(`${colors.green}${colors.bright}  ✓ System Ready - Silahkan ketik perintah anda ...${colors.reset}`);
     console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
     console.log('\n');
 }
