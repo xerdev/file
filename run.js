@@ -4,6 +4,7 @@ const fs = require('fs');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// Mengatur zona waktu default
 process.env.TZ = 'Asia/Jakarta';
 
 // ANSI Color Codes
@@ -16,14 +17,15 @@ const colors = {
     blue: '\x1b[34m',
     magenta: '\x1b[35m',
     white: '\x1b[37m',
-    gray: '\x1b[90m'
+    gray: '\x1b[90m',
+    red: '\x1b[31m' // Tambahkan warna merah untuk output CPU Usage
 };
 
 /**
  * Format bytes to human readable
  */
 function formatBytes(bytes, decimals = 1) {
-    if (bytes === 0) return '0B';
+    if (bytes === 0 || isNaN(bytes)) return '0B';
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['B', 'K', 'M', 'G', 'T'];
@@ -35,6 +37,7 @@ function formatBytes(bytes, decimals = 1) {
  * Format uptime to readable format
  */
 function formatUptime(seconds) {
+    seconds = Math.floor(seconds);
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -52,6 +55,7 @@ function formatUptime(seconds) {
  */
 async function getPublicIPInfo() {
     try {
+        // Menggunakan curl ke ipapi.co untuk mendapatkan info IP
         const { stdout } = await execPromise('curl -s https://ipapi.co/json/', { timeout: 5000 });
         const data = JSON.parse(stdout);
         return {
@@ -71,12 +75,21 @@ async function getPublicIPInfo() {
 }
 
 /**
- * Get CPU usage
+ * Get CPU usage (Diperbaiki untuk mengatasi NaN)
  */
 async function getCPUUsage() {
     try {
-        const { stdout } = await execPromise("top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'");
-        return parseFloat(stdout.trim()).toFixed(1);
+        // Menggunakan vmstat 1 2 untuk mendapatkan rata-rata idle time dan menghitung (100 - idle)
+        const { stdout } = await execPromise("vmstat 1 2 | tail -1 | awk '{print 100 - $15}'");
+        const usage = parseFloat(stdout.trim());
+        
+        if (isNaN(usage) || usage < 0 || usage > 100) {
+            // Jika hasil tidak valid, coba metode top
+            const { stdout: topOutput } = await execPromise("top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'");
+            const topUsage = parseFloat(topOutput.trim());
+            return (isNaN(topUsage) || topUsage < 0) ? 'N/A' : topUsage.toFixed(1);
+        }
+        return usage.toFixed(1);
     } catch (error) {
         return 'N/A';
     }
@@ -98,18 +111,29 @@ function getMemoryInfo() {
 }
 
 /**
- * Get swap info
+ * Get swap info (Diperbaiki untuk mengatasi NaN)
  */
 async function getSwapInfo() {
     try {
-        const { stdout } = await execPromise("free -b | grep Swap | awk '{print $2,$3}'");
-        const [total, used] = stdout.trim().split(' ').map(Number);
+        // Menggunakan free -b dan grep/awk yang lebih spesifik untuk mendapatkan total dan used swap
+        const { stdout } = await execPromise("free -b | grep 'Swap:' | awk '{print $2,$3}'");
+        const parts = stdout.trim().split(' ');
+        
+        // Memastikan ada setidaknya 2 nilai (Total dan Used)
+        if (parts.length < 2) {
+             return { total: '0B', used: '0B' };
+        }
+        
+        const total = Number(parts[0]);
+        const used = Number(parts[1]);
+
         return {
             total: formatBytes(total),
             used: formatBytes(used)
         };
     } catch (error) {
-        return { total: 'N/A', used: 'N/A' };
+        // Jika gagal, asumsikan 0B
+        return { total: '0B', used: '0B' };
     }
 }
 
@@ -223,19 +247,24 @@ async function displaySystemInfo() {
 }
 
 /**
- * Start bash with colored prompt
+ * Start bash with colored prompt (Diperbaiki agar prompt langsung muncul)
  */
 function startBash() {
     try {
-        const colorPrompt = '\\[\\033[1;36m\\]Premiumapps@users\\[\\033[0m\\]:\\w\\$ ';
+        // Prompt yang disesuaikan
+        const colorPrompt = '\\[\\033[1;36m\\]container@pterodactyl\\[\\033[0m\\]:\\w\\$ ';
 
-        const childProcess = spawn('bash', ['-c', `
-            export USER="XMPANEL";
-            export HOME="/home/container";
-            export PS1="${colorPrompt}";
-            bash --noprofile --norc
-        `], {
-            stdio: 'inherit'
+        // Gunakan 'bash' dengan opsi interaktif (-i) dan stdio 'inherit'
+        const childProcess = spawn('bash', ['-i'], {
+            stdio: 'inherit',
+            // Gunakan env untuk mengatur variabel yang diperlukan
+            env: {
+                ...process.env,
+                USER: "XMPANEL",
+                HOME: "/home/container",
+                // PS1 (Prompt String 1) diatur di bash profile atau secara eksplisit jika perlu
+                PS1: colorPrompt // Mengatur PS1 agar prompt muncul langsung
+            }
         });
 
         childProcess.on('error', (error) => {
