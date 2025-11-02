@@ -192,9 +192,10 @@ async function getKernelVersion() {
  * Display system information
  */
 async function displaySystemInfo() {
+    console.clear();
     console.log('\n');
     console.log(`${colors.cyan}${colors.bright}╔════════════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}║          🚀 SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ║${colors.reset}`);
+    console.log(`${colors.cyan}${colors.bright}║          🚀 SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ${colors.reset}`);
     console.log(`${colors.cyan}${colors.bright}╚════════════════════════════════════════════════════════════════╝${colors.reset}`);
     console.log('');
 
@@ -252,15 +253,15 @@ async function displaySystemInfo() {
 function startBash() {
     try {
         // Prompt yang disesuaikan
-        const colorPrompt = '\\[\\033[1;36m\\]container@pterodactyl\\[\\033[0m\\]:\\w\\$ ';
-
+        const colorPrompt = '\\[\\033[1;36m\\]Premiumapps@users\\[\\033[0m\\]:\\w\\$ ';
+        
         // Gunakan 'bash' dengan opsi interaktif (-i) dan stdio 'inherit'
         const childProcess = spawn('bash', ['-i'], {
             stdio: 'inherit',
             // Gunakan env untuk mengatur variabel yang diperlukan
             env: {
                 ...process.env,
-                USER: "XMPANEL",
+                USER: "Gofar",
                 HOME: "/home/container",
                 // PS1 (Prompt String 1) diatur di bash profile atau secara eksplisit jika perlu
                 PS1: colorPrompt // Mengatur PS1 agar prompt muncul langsung
