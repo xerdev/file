@@ -4,289 +4,215 @@ const fs = require('fs');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
-// Mengatur zona waktu default
 process.env.TZ = 'Asia/Jakarta';
 
-// ANSI Color Codes
+// ANSI colors
 const colors = {
-    reset: '\x1b[0m',
-    bright: '\x1b[1m',
-    cyan: '\x1b[36m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    magenta: '\x1b[35m',
-    white: '\x1b[37m',
-    gray: '\x1b[90m',
-    red: '\x1b[31m' // Tambahkan warna merah untuk output CPU Usage
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  cyan: '\x1b[36m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  white: '\x1b[37m',
+  gray: '\x1b[90m',
+  red: '\x1b[31m'
 };
 
-/**
- * Format bytes to human readable
- */
+// Format bytes
 function formatBytes(bytes, decimals = 1) {
-    if (bytes === 0 || isNaN(bytes)) return '0B';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['B', 'K', 'M', 'G', 'T'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + sizes[i];
+  if (bytes === 0 || isNaN(bytes)) return '0B';
+  const k = 1024, dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'K', 'M', 'G', 'T'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + sizes[i];
 }
 
-/**
- * Format uptime to readable format
- */
+// Format uptime
 function formatUptime(seconds) {
-    seconds = Math.floor(seconds);
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    let result = [];
-    if (days > 0) result.push(`${days} day${days > 1 ? 's' : ''}`);
-    if (hours > 0) result.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-    if (minutes > 0) result.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-    
-    return result.join(' ') || '0 minutes';
+  seconds = Math.floor(seconds);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const result = [];
+  if (days > 0) result.push(`${days} day${days > 1 ? 's' : ''}`);
+  if (hours > 0) result.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+  if (minutes > 0) result.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+  return result.join(' ') || '0 minutes';
 }
 
-/**
- * Get public IP and location info
- */
+// Get IP info
 async function getPublicIPInfo() {
-    try {
-        // Menggunakan curl ke ipapi.co untuk mendapatkan info IP
-        const { stdout } = await execPromise('curl -s https://ipapi.co/json/', { timeout: 5000 });
-        const data = JSON.parse(stdout);
-        return {
-            ip: data.ip || 'N/A',
-            country: data.country_name || 'N/A',
-            region: data.region || 'N/A',
-            isp: data.org || 'N/A'
-        };
-    } catch (error) {
-        return {
-            ip: 'N/A',
-            country: 'N/A',
-            region: 'N/A',
-            isp: 'N/A'
-        };
-    }
-}
-
-/**
- * Get CPU usage (Diperbaiki untuk mengatasi NaN)
- */
-async function getCPUUsage() {
-    try {
-        // Menggunakan vmstat 1 2 untuk mendapatkan rata-rata idle time dan menghitung (100 - idle)
-        const { stdout } = await execPromise("vmstat 1 2 | tail -1 | awk '{print 100 - $15}'");
-        const usage = parseFloat(stdout.trim());
-        
-        if (isNaN(usage) || usage < 0 || usage > 100) {
-            // Jika hasil tidak valid, coba metode top
-            const { stdout: topOutput } = await execPromise("top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'");
-            const topUsage = parseFloat(topOutput.trim());
-            return (isNaN(topUsage) || topUsage < 0) ? 'N/A' : topUsage.toFixed(1);
-        }
-        return usage.toFixed(1);
-    } catch (error) {
-        return 'N/A';
-    }
-}
-
-/**
- * Get memory info
- */
-function getMemoryInfo() {
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
-    const usedMem = totalMem - freeMem;
-    
+  try {
+    const { stdout } = await execPromise('curl -s https://ipapi.co/json/', { timeout: 4000 });
+    const data = JSON.parse(stdout);
     return {
-        total: formatBytes(totalMem),
-        used: formatBytes(usedMem),
-        free: formatBytes(freeMem)
+      ip: data.ip || 'N/A',
+      country: data.country_name || 'N/A',
+      region: data.region || 'N/A',
+      isp: data.org || 'N/A'
     };
+  } catch {
+    return { ip: 'N/A', country: 'N/A', region: 'N/A', isp: 'N/A' };
+  }
 }
 
-/**
- * Get swap info (Diperbaiki untuk mengatasi NaN)
- */
+// Get CPU usage (lebih akurat + fallback)
+async function getCPUUsage() {
+  try {
+    const { stdout } = await execPromise("top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'");
+    const usage = parseFloat(stdout.trim());
+    if (!isNaN(usage) && usage >= 0 && usage <= 100) return usage.toFixed(1);
+
+    // fallback ke load average
+    const load = os.loadavg()[0] / os.cpus().length * 100;
+    return load.toFixed(1);
+  } catch {
+    const load = os.loadavg()[0] / os.cpus().length * 100;
+    return load.toFixed(1);
+  }
+}
+
+// Get memory info
+function getMemoryInfo() {
+  const total = os.totalmem(), free = os.freemem(), used = total - free;
+  return { total: formatBytes(total), used: formatBytes(used), free: formatBytes(free) };
+}
+
+// Get swap info
 async function getSwapInfo() {
-    try {
-        // Menggunakan free -b dan grep/awk yang lebih spesifik untuk mendapatkan total dan used swap
-        const { stdout } = await execPromise("free -b | grep 'Swap:' | awk '{print $2,$3}'");
-        const parts = stdout.trim().split(' ');
-        
-        // Memastikan ada setidaknya 2 nilai (Total dan Used)
-        if (parts.length < 2) {
-             return { total: '0B', used: '0B' };
-        }
-        
-        const total = Number(parts[0]);
-        const used = Number(parts[1]);
-
-        return {
-            total: formatBytes(total),
-            used: formatBytes(used)
-        };
-    } catch (error) {
-        // Jika gagal, asumsikan 0B
-        return { total: '0B', used: '0B' };
-    }
+  try {
+    const { stdout } = await execPromise("free -b | grep 'Swap:' | awk '{print $2,$3}'");
+    const [total, used] = stdout.trim().split(' ').map(Number);
+    return { total: formatBytes(total || 0), used: formatBytes(used || 0) };
+  } catch {
+    return { total: '0B', used: '0B' };
+  }
 }
 
-/**
- * Get disk info
- */
+// Get disk info
 async function getDiskInfo() {
-    try {
-        const { stdout } = await execPromise("df -B1 / | tail -1 | awk '{print $2,$3}'");
-        const [total, used] = stdout.trim().split(' ').map(Number);
-        return {
-            total: formatBytes(total),
-            used: formatBytes(used)
-        };
-    } catch (error) {
-        return { total: 'N/A', used: 'N/A' };
-    }
+  try {
+    const { stdout } = await execPromise("df -B1 / | tail -1 | awk '{print $2,$3}'");
+    const [total, used] = stdout.trim().split(' ').map(Number);
+    return { total: formatBytes(total), used: formatBytes(used) };
+  } catch {
+    return { total: 'N/A', used: 'N/A' };
+  }
 }
 
-/**
- * Get CPU model
- */
+// CPU model
 async function getCPUModel() {
-    try {
-        const { stdout } = await execPromise("cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2 | sed 's/^[ \\t]*//'");
-        return stdout.trim() || os.cpus()[0]?.model || 'N/A';
-    } catch (error) {
-        return os.cpus()[0]?.model || 'N/A';
-    }
+  try {
+    const { stdout } = await execPromise("cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2 | sed 's/^ *//'");
+    return stdout.trim() || os.cpus()[0]?.model || 'N/A';
+  } catch {
+    return os.cpus()[0]?.model || 'N/A';
+  }
 }
 
-/**
- * Get OS info
- */
+// OS and kernel info
 function getOSInfo() {
-    try {
-        return `${os.type()}`;
-    } catch (error) {
-        return 'N/A';
-    }
+  return os.type();
 }
 
-/**
- * Get kernel version
- */
 async function getKernelVersion() {
-    try {
-        const { stdout } = await execPromise("uname -r");
-        return stdout.trim();
-    } catch (error) {
-        return 'N/A';
-    }
+  try {
+    const { stdout } = await execPromise("uname -r");
+    return stdout.trim();
+  } catch {
+    return 'N/A';
+  }
 }
 
-/**
- * Display system information
- */
+// Display system info
 async function displaySystemInfo() {
-    console.clear();
-    console.log('\n');
-    console.log(`${colors.cyan}${colors.bright}╔════════════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}║          🚀  SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}╚════════════════════════════════════════════════════════════════╝${colors.reset}`);
-    console.log('');
+  console.clear();
+  console.log('\n');
+  console.log(`${colors.cyan}${colors.bright}╔════════════════════════════════════════════════════════════════╗${colors.reset}`);
+  console.log(`${colors.cyan}${colors.bright}║          🚀  SYSTEM INFORMATION - PTERODACTYL PANEL 🚀          ${colors.reset}`);
+  console.log(`${colors.cyan}${colors.bright}╚════════════════════════════════════════════════════════════════╝${colors.reset}`);
+  console.log('');
 
-    // Get all system info
-    const ipInfo = await getPublicIPInfo();
-    const cpuUsage = await getCPUUsage();
-    const memory = getMemoryInfo();
-    const swap = await getSwapInfo();
-    const disk = await getDiskInfo();
-    const cpuModel = await getCPUModel();
-    const kernel = await getKernelVersion();
-    const uptime = formatUptime(os.uptime());
-    const currentTime = new Date().toLocaleString('sv-SE', { 
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    }).replace(' ', ' ');
+  const [ipInfo, cpuUsage, memory, swap, disk, cpuModel, kernel] = await Promise.all([
+    getPublicIPInfo(),
+    getCPUUsage(),
+    getMemoryInfo(),
+    getSwapInfo(),
+    getDiskInfo(),
+    getCPUModel(),
+    getKernelVersion()
+  ]);
 
-    // Display info with nice formatting
-    const printInfo = (label, value, color = colors.white) => {
-        console.log(`${colors.cyan}▻ ${colors.bright}${label.padEnd(16)}${colors.reset}: ${color}${value}${colors.reset}`);
-    };
+  const uptime = formatUptime(os.uptime());
+  const currentTime = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Jakarta' });
 
-    printInfo('ISP', ipInfo.isp, colors.green);
-    printInfo('IPv4', `${ipInfo.ip} (Public IP)`, colors.yellow);
-    printInfo('Country', ipInfo.country, colors.blue);
-    printInfo('Region', ipInfo.region, colors.blue);
-    printInfo('OS', getOSInfo(), colors.magenta);
-    printInfo('Uptime', uptime, colors.green);
-    printInfo('NodeJS version', process.version.substring(1), colors.yellow);
-    printInfo('Memory', `${memory.total} (${memory.used} Used)`, colors.cyan);
-    printInfo('Swap', `${swap.total} (${swap.used} Used)`, colors.cyan);
-    printInfo('Disk', `${disk.total} (${disk.used} Used)`, colors.magenta);
-    printInfo('CPUs', os.cpus().length.toString(), colors.green);
-    printInfo('Processor', cpuModel, colors.white);
-    printInfo('Arch', os.arch(), colors.yellow);
-    printInfo('Kernel', kernel, colors.blue);
-    printInfo('CPU Usage', `${cpuUsage}%`, colors.red);
-    printInfo('Current Time', currentTime, colors.green);
+  const print = (label, value, color = colors.white) =>
+    console.log(`${colors.cyan}▻ ${colors.bright}${label.padEnd(16)}${colors.reset}: ${color}${value}${colors.reset}`);
 
-    console.log('');
-    console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
-    console.log(`${colors.green}${colors.bright}  ✓ System Ready - Silahkan ketik perintah anda ...${colors.reset}`);
-    console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
-    console.log('\n');
+  print('ISP', ipInfo.isp, colors.green);
+  print('IPv4', `${ipInfo.ip} (Public IP)`, colors.yellow);
+  print('Country', ipInfo.country, colors.blue);
+  print('Region', ipInfo.region, colors.blue);
+  print('OS', getOSInfo(), colors.magenta);
+  print('Uptime', uptime, colors.green);
+  print('NodeJS version', process.version.substring(1), colors.yellow);
+  print('Memory', `${memory.total} (${memory.used} Used)`, colors.cyan);
+  print('Swap', `${swap.total} (${swap.used} Used)`, colors.cyan);
+  print('Disk', `${disk.total} (${disk.used} Used)`, colors.magenta);
+  print('CPUs', os.cpus().length.toString(), colors.green);
+  print('Processor', cpuModel, colors.white);
+  print('Arch', os.arch(), colors.yellow);
+  print('Kernel', kernel, colors.blue);
+  print('CPU Usage', `${cpuUsage}%`, colors.red);
+  print('Current Time', currentTime, colors.green);
+
+  console.log('');
+  console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
+  console.log(`${colors.green}${colors.bright}  ✓ System Ready - Checking Node Modules...${colors.reset}`);
+  console.log(`${colors.cyan}${colors.bright}════════════════════════════════════════════════════════════════${colors.reset}`);
+  console.log('\n');
 }
 
-/**
- * Start bash with colored prompt (Diperbaiki agar prompt langsung muncul)
- */
-function startBash() {
-    try {
-        const colorPrompt = '\\[\\033[1;36m\\]Premiumapps@users\\[\\033[0m\\]:\\w\\$ ';
-
-        const childProcess = spawn('bash', ['-c', `
-            export USER="Gofar";
-            export HOME="/home/container";
-            export PS1="${colorPrompt}";
-            bash --noprofile --norc
-        `], {
-            stdio: 'inherit'
-        });
-
-        childProcess.on('error', (error) => {
-            console.error(`${colors.red}Error starting process: ${error.message}${colors.reset}`);
-        });
-
-        childProcess.on('exit', (code) => {
-            if (code !== 0) {
-                console.log(`${colors.yellow}Process exited with code: ${code}${colors.reset}`);
-            }
-        });
-    } catch (error) {
-        console.error(`${colors.red}Error: ${error.message}${colors.reset}`);
+// Cek dan install node_modules
+async function ensureNodeModules() {
+  const path = '/home/container/node_modules';
+  try {
+    if (!fs.existsSync(path)) {
+      console.log(`${colors.yellow}⚙️  node_modules not found, running npm install...${colors.reset}`);
+      await execPromise('npm install --no-bin-links --legacy-peer-deps --unsafe-perm=true');
+      console.log(`${colors.green}✅ npm install completed successfully.${colors.reset}`);
+    } else {
+      console.log(`${colors.green}✅ node_modules directory found.${colors.reset}`);
     }
+  } catch (error) {
+    console.error(`${colors.red}❌ npm install failed: ${error.message}${colors.reset}`);
+    console.log(`${colors.yellow}Trying to reinstall...${colors.reset}`);
+    try {
+      await execPromise('rm -rf node_modules && npm install --no-bin-links --legacy-peer-deps --unsafe-perm=true');
+      console.log(`${colors.green}✅ npm reinstall success.${colors.reset}`);
+    } catch (err) {
+      console.error(`${colors.red}❌ Reinstall failed: ${err.message}${colors.reset}`);
+    }
+  }
 }
 
-/**
- * Main function
- */
-async function main() {
-    await displaySystemInfo();
-    startBash();
+// Jalankan npm start
+function startApp() {
+  console.log(`${colors.cyan}🚀 Starting application with npm start...${colors.reset}`);
+  const child = spawn('npm', ['start'], { stdio: 'inherit' });
+  child.on('exit', (code) => {
+    console.log(`${colors.yellow}npm start exited with code ${code}${colors.reset}`);
+  });
+  child.on('error', (err) => {
+    console.error(`${colors.red}Error starting npm: ${err.message}${colors.reset}`);
+  });
 }
 
-// Run the script
-main().catch(error => {
-    console.error(`${colors.red}Fatal error: ${error.message}${colors.reset}`);
-    process.exit(1);
-});
+// Main
+(async () => {
+  await displaySystemInfo();
+  await ensureNodeModules();
+  startApp();
+})();
